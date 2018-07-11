@@ -1,0 +1,5 @@
+# vitrualenv
+.venv/
+
+# pyc files
+*.pyc

@@ -30,12 +30,57 @@ class Control:
         # remote lock is off 
         else:
             # parse request json to order json
-            order_json = self.__parse_data_to_order(data)
-            # set order json in redis
-            self.__set_order_json(order_json)
+            
+            valid = self.__check(data)
+            
+            # set value is valid
+            if valid:
+                # set order json in redis
+                order_json = self.__parse_data_to_order(data)
+                self.__set_order_json(order_json)
 
-            resp.body = "Order send in redis queue, wait for process"
-            resp.status = falcon.HTTP_200
+                resp.body = "Order send in redis queue, wait for process"
+                resp.status = falcon.HTTP_200
+            
+            # set value is not valid
+            else:
+                resp.body = "please check your set channel name or value if valid"
+                resp.status = falcon.HTTP_403
+
+    def __check(self, order_json):
+        """
+        check order if valid
+        """
+        channels = ["TestTemperature", "MaintainTemperature", "AgeingTemperature",
+        "ExhaustTime", "AgeingTime", "CoolingTime", "TestTime",]
+
+        ranges = {
+            "TestTemperature": [0, 70.0],
+            "MaintainTemperature": [0, 70.0], 
+            "AgeingTemperature": [10.0, 70.0],
+            "ExhaustTime": [1, 9999], 
+            "AgeingTime": [1, 9999], 
+            "CoolingTime": [1, 9999], 
+            "TestTime": [1, 9999],
+        }
+        log.debug(order_json)
+        if order_json['channel'] not in channels:
+            return False
+        else:
+            value = order_json['value']
+            channel = order_json['channel']
+            range = ranges[channel]
+            return self.__if_in_list(value, range)
+
+    @staticmethod
+    def __if_in_list(value, range_list):
+        """
+        check value if in rane_list
+        """       
+        if value >= range_list[0] and value <= range_list[1]:
+            return True
+        else:
+            return False
     
     def get_lock_status(self):
         """
@@ -51,7 +96,8 @@ class Control:
         """
         set control data in redis
         """
-        return self.redis.set("order_queue", order_json)
+        order_json  = json.dumps(order_json)
+        return self.redis.lpush("order_queue", order_json)
     
     def __parse_data_to_order(self, data): 
         """
@@ -60,9 +106,23 @@ class Control:
         redis_json = {
             "type": self.__get_type(data['channel']),
             "address": self.__get_address(data['channel']),
-            "value": data['value']
+            "value": self.__set_value(data)
         }
         return redis_json
+
+    @staticmethod
+    def __set_value(data):
+        """
+        value must be a int
+        """
+        float_list = ["TestTemperature", "MaintainTemperature", "AgeingTemperature",]
+        
+        if data['channel'] in float_list:
+            value = int(data['value']*10)
+        else:
+            value = int(data['value'])
+        
+        return value
 
     @staticmethod
     def __get_type(channel_name):

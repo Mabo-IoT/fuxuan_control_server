@@ -1,0 +1,19 @@
+[redis]
+    host = "127.0.0.1"
+    port = 6379
+    db = 0
+
+[server]
+    bind = '127.0.0.1:8000'
+    workers = 1
+
+[log]
+    console = true
+    console_level = 'DEBUG'   #'DEBUG','INFO','WARNING','ERROR','CRITICAL'
+    file = true
+    file_level = 'DEBUG'  #'DEBUG','INFO','WARNING','ERROR','CRITICAL'
+    log_file = 'logs/log.log'
+    backup_count = 5
+    max_size = 10240
+    format_string = '(%(asctime)s), %(levelname)s, <%(threadName)s>, %(module)s, %(funcName)s, [%(lineno)d]: %(message)s'
+

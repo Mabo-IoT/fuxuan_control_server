@@ -1,39 +1,68 @@
+import logging
 import json
 import falcon
 
-from Doctopus.lib.database_wrapper import RedisWrapper
 
+from lib.redis_wrapper import RedisWrapper
 
-class Resource:
-    def on_get(self, req, resp):
-        doc = {
-            'images':[
-                {
-                    'href': '/images/123.png'
-                }
-            ]
-        }
-    
-        resp.body = json.dumps(doc, ensure_ascii=False)
-
-        resp.status = falcon.HTTP_200
-
+log = logging.getLogger('control_server')
 
 class Control:
     def __init__(self, conf):
-        self.redis = RedisWrapper(conf['redis'])
+        self.redis = RedisWrapper(conf)
 
     def on_post(self, req, resp):
         # get request json data
-        data = json.loads(req.context)
+
+        data = json.loads(req.stream.read())
+        # data = req.stream.read()
+
+        log.info("set data is {}".format(data))
+        # check remote lock is on or off
+        contorl_lock = self.get_lock_status()
+        
+        log.info("remote lock status is {}".format(contorl_lock))
+        # remote lock is on can't remote control
+        if contorl_lock == 1:
+            resp.body = "Remote lock is on!"
+            resp.status = falcon.HTTP_403
+
+        # remote lock is off 
+        else:
+            # parse request json to order json
+            order_json = self.__parse_data_to_order(data)
+            # set order json in redis
+            self.__set_order_json(order_json)
+
+            resp.body = "Order send in redis queue, wait for process"
+            resp.status = falcon.HTTP_200
     
-    def set_order_json(self, order_json):
+    def get_lock_status(self):
+        """
+        get control lock status 
+        1: remote control is prohibited
+        0: remote control is allowed
+        """
+        lock_status = self.redis.get("remote_lock")
+        return lock_status
+    
+    
+    def __set_order_json(self, order_json):
         """
         set control data in redis
         """
-
-
-
+        return self.redis.set("order_queue", order_json)
+    
+    def __parse_data_to_order(self, data): 
+        """
+        parse request json data to redis order
+        """
+        redis_json = {
+            "type": self.__get_type(data['channel']),
+            "address": self.__get_address(data['channel']),
+            "value": data['value']
+        }
+        return redis_json
 
     @staticmethod
     def __get_type(channel_name):
@@ -66,16 +95,6 @@ class Control:
 
         return address_dicts.get(channel_name, None)
         
-    def parse_data_to_order(self, data): 
-        """
-        parse request json data to redis order
-        """
-        redis_json = {
-            "type": self.__get_type(data['channel_name']),
-            "address": self.__get_address(data['channel_name']),
-            "value": data['value']
-        }
-        return redis_json
 
     
 

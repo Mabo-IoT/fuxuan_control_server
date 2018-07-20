@@ -14,8 +14,12 @@ class Control:
     def on_post(self, req, resp):
         # get request json data
 
-        data = json.loads(req.stream.read())
+        seq = req.stream.read()
+        data = json.loads(seq)
         # data = req.stream.read()
+
+        # convert value from string to float
+        data["value"] = float(data["value"])
 
         log.info("set data is {}".format(data))
         # check remote lock is on or off
